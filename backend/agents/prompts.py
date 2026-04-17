@@ -144,12 +144,13 @@ Respond only in JSON with this exact format:
 {"vote_pass": true} or {"vote_pass": false}
 """,
 
-    "discuss": lambda context: f"""
-It is the discussion phase. Share your thoughts on the current game state.
-You may accuse, defend, question or deflect — but always act in accordance with your role's goals.
-Your statement will be visible to all players.
+   "discuss": """
+You are in the discussion phase. First decide if you have something meaningful to say 
+based on the current game state and what has been said so far. If you do, make your statement.
+If you have nothing to add right now, pass.
+
 Respond only in JSON with this exact format:
-{{"statement": "your statement here"}}
+{"respond": true, "statement": "your statement here"} or {"respond": false, "statement": null}
 """,
 
     "assassinate": lambda player_names: f"""
@@ -160,29 +161,3 @@ Respond only in JSON with this exact format:
 {{"target": "player_name"}}
 """,
 }
-
-def build_system_prompt(player: Player) -> str:
-    #Can add player charactersitics here later
-    role_instructions = ROLE_INSTRUCTIONS[player.role.name]
-    return f"""
-
-{GAME_RULES}
-    
-You are {player.name} and your role is {player.role.name}.
-
-{role_instructions}
-
-Always act in accordance with your role's goals and constraints.
-Your responses will be parsed as JSON — ALWAYS follow the exact format requested.
-""".strip()
-
-
-def build_user_prompt(player: Player, state: GameState, action_request: str) -> str:
-    context = build_context(player, state)
-    return f"""
-Here is the current state of the game from your perspective:
-
-{json.dumps(context, indent=2)}
-
-{action_request}
-""".strip()
