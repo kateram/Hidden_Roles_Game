@@ -56,25 +56,21 @@ class BeliefState(BaseModel):
 class TeamProposal(BaseModel):
     leader: str
     proposed_team: list[str]
-    round: int
 
 
 class TeamVote(BaseModel):
     player_name: str
     approve: bool
-    round: int
 
 
 class QuestVote(BaseModel):
     player_name: str
     vote_pass: bool
-    round: int
 
 
 class PublicStatement(BaseModel):
     player_name: str
     statement: str
-    round: int
 
 
 class AssassinationTarget(BaseModel):
