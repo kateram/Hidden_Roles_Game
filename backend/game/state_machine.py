@@ -1,9 +1,9 @@
-from game.schemas import (
+from backend.game.schemas import (
     GameState, GamePhase, GameResult,
     TeamProposal, TeamVote, QuestVote,
     QuestResult, Player
 )
-from game.roles import QUEST_TEAM_SIZES
+from backend.game.roles import QUEST_TEAM_SIZES
 
 
 def get_next_leader(state: GameState) -> str:

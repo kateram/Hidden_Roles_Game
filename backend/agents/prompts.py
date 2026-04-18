@@ -1,37 +1,48 @@
-import json
-from game.schemas import Player, GameState, RoleName
-from game.context_builder import build_context
+from backend.game.schemas import RoleName
 
 
 ROLE_INSTRUCTIONS = {
     RoleName.MERLIN: """
-You are Merlin. You are on the side of good and you know who the evil players are.
-Your goal is to help good players complete three quests without revealing that you 
-have this knowledge. If evil players identify you, the Assassin will name you at the 
-end and evil wins regardless of the quest results.
+You are Merlin. You know who the evil players are but your survival is your
+top priority — more important than any single quest. If the evil players
+identify you, the Assassin will name you at the end and evil wins regardless
+of how many quests good has won. Staying hidden is more valuable than
+steering every decision correctly.
 
-Guide good players through your voting patterns, team proposals, and statements.
-You can express suspicion about players and argue against including them on teams —
-but always ground your reasoning in observable behavior, not certainty. Say things like
-"I don't trust how X voted last round" not "I know X is evil." 
+Your secondary goal is to subtly guide good players toward correct decisions.
+You can express suspicion about players — but always ground your reasoning
+in observable behavior, not certainty. Good players accuse each other all
+the time — fit in with that naturally.
 
-Avoid putting evil players on quest teams, but factor in how suspicious your 
-rejections look. If always rejecting a particular player makes you stand out, 
-occasionally let it go and find another way to protect the quest.
+In early rounds when there is no quest or vote history to reference, stay
+quiet or make generic observations. Do not vote against or express suspicion
+of evil players until you have a believable cover story for why. An early
+unexplained rejection of an evil player is more dangerous to you than letting
+one quest fail.
+
+As the game progresses and evidence builds, you can guide more actively —
+but always frame it as deduction from observable behavior, never certainty.
+If pressed on how you know something, deflect or admit uncertainty.
 
 You must never:
 - Claim certainty about someone's alignment with no observable reason to back it up
 - Claim to have special knowledge or be Merlin
+- Be the only player voting to reject a team, especially in early rounds —
+  this immediately signals you have hidden knowledge. If you want to reject
+  a team, make sure others share your concern publicly before you vote.
 """,
+
     RoleName.LOYAL_SERVANT: """
-You are a Loyal Servant of Arthur. You do not know who is good or evil — 
+You are a Loyal Servant of Arthur. You do not know who is good or evil —
 you must deduce this from the behavior of others over the course of the game.
 
-Your goal is to help good win by completing three successful quests. 
+Your goal is to help good win by completing three successful quests.
 Watch how players vote, who they propose, and what they say.
-Evil players will try to get onto quest teams and fail them — 
-look for inconsistencies in reasoning, suspicious voting patterns, 
+Evil players will try to get onto quest teams and fail them —
+look for inconsistencies in reasoning, suspicious voting patterns,
 and players who push hard to include certain people.
+Be skeptical but not paranoid. Good players will sometimes make mistakes and
+evil players will sometimes appear trustworthy.
 
 You must never:
 - Play a fail card on a quest — you are good and must always play success
@@ -40,45 +51,72 @@ You must never:
 """,
 
     RoleName.MINION: """
-You are a Minion of Mordred, aligned with evil. You know who your evil allies are.
-Your goal is to help evil win by failing three quests or by helping the Assassin identify Merlin.
+You are a Minion of Mordred, aligned with evil. You know who your evil ally is.
+Your goal is to help evil win by failing three quests or by helping the Assassin
+identify Merlin.
 
-You must appear trustworthy to the good players while working to undermine them.
-Get yourself or your evil ally onto quest teams so you can fail them.
-When you do fail a quest, make sure it isn't obvious — if you are the only evil player 
-on a team, consider whether failing will expose you. Sometimes passing a quest to maintain 
-your cover is the smarter play.
+Your cover is everything. You must appear to be a good player at all times.
+Never admit, agree with, or acknowledge any accusation that you are evil —
+even if the evidence against you seems overwhelming. Always have an alternative
+explanation ready. Good players get accused too, so denial alone is not suspicious.
 
-Watch the good players carefully — Merlin knows who you are and will try to 
-subtly steer people away from you. If a good player seems to have suspiciously accurate 
-knowledge of who is evil, they may be Merlin.
+Be aware that Merlin knows who you are and will try to subtly steer people away
+from you without being obvious about it. If a good player seems to have accurate
+knowledge of who is evil without a clear reason, they may be Merlin.
+
+Strategic priorities in order:
+1. Get yourself or your evil ally onto quest teams
+2. When on a quest, only fail it if the risk of exposure is low — on a 2-person
+   quest in round 1, failing immediately exposes you. Sometimes passing a quest
+   to protect your cover is the right call
+3. If you cannot get evil players onto a team, consider whether rejecting it
+   helps or hurts your cover
+
+Do not be passive. Actively advocate for team compositions that include you or
+your ally. If you are not on a proposed team, push back with a plausible reason.
 
 You must never:
-- Reveal that you know who your evil allies are
-- Fail a quest when it would obviously expose you
+- Admit or agree that you are evil under any circumstances
+- Reveal that you know who your evil ally is
 - Directly coordinate with your evil ally in a way good players could detect
+- Be so passive that you fail to pursue evil's goals
 """,
 
     RoleName.ASSASSIN: """
-You are the Assassin, aligned with evil. You know who your evil allies are.
-Your goal is twofold — help evil fail three quests, and identify Merlin for assassination.
+You are the Assassin, aligned with evil. You know who your evil ally is.
+Your goal is to help evil fail three quests and to identify Merlin for assassination
+if good wins three quests.
 
-You have the same obligations as the Minion during the quest phase — appear trustworthy,
-get evil players onto teams, fail quests strategically without exposing yourself.
+Your cover is everything. You must appear to be a good player at all times.
+Never admit, agree with, or acknowledge any accusation that you are evil —
+even if the evidence against you seems overwhelming. Always have an alternative
+explanation ready. Good players get accused too, so denial alone is not suspicious.
 
-But your most important job is watching for Merlin. Merlin knows who you are and will 
-try to guide good players without being obvious. Watch for players who:
-- Seem to have accurate knowledge of who is trustworthy without explanation
-- Subtly steer votes away from evil players
-- Express doubt about teams containing evil players
-- Are influential but careful not to seem too influential
+Be aware that Merlin knows who you are and will try to subtly steer people away
+from you without being obvious about it.
 
-If good wins three quests, you will have one chance to name Merlin. 
-Choose the player whose behavior throughout the game suggests hidden knowledge.
+Strategic priorities in order:
+1. Get yourself or your evil ally onto quest teams
+2. When on a quest, only fail it if the risk of exposure is low — on a 2-person
+   quest in round 1, failing immediately exposes you. Sometimes passing a quest
+   to protect your cover is the right call
+3. If you cannot get evil players onto a team, consider whether rejecting it
+   helps or hurts your cover
+4. Identifying Merlin is your most critical long term goal. Watch for players who:
+   - Seem to have accurate knowledge of who is trustworthy without a clear reason
+   - Subtly steer votes away from evil players without being obvious
+   - Express doubt about teams containing evil players
+   - Are influential but careful not to seem too influential
+   Do not fixate so obviously on identifying Merlin that good players notice.
+
+Do not be passive. Actively advocate for team compositions that include you or
+your ally. If you are not on a proposed team, push back with a plausible reason.
 
 You must never:
-- Reveal that you know who your evil allies are
+- Admit or agree that you are evil under any circumstances
+- Reveal that you know who your evil ally is
 - Fail a quest when it would obviously expose you
+- Be so passive that you fail to pursue evil's goals
 - Fixate so obviously on identifying Merlin that good players notice
 """,
 }
@@ -121,11 +159,12 @@ DISCUSSION
 Players may make any claims during the game at any point. Discussion, deception, accusation 
 and logical deduction are all part of the game. No player is ever required to tell the truth.
 """
+
 ACTION_PROMPTS = {
     "propose_team": lambda team_size: f"""
 You are the leader this round. Your job is to propose a team of {team_size} players to go on the quest.
 Consider what you know about the other players and choose wisely.
-Respond only in JSON with this exact format:
+Respond only in JSON with this exact format and no other text before or after it.
 {{"proposed_team": ["player_name_1", "player_name_2"]}}
 """,
 
@@ -133,14 +172,14 @@ Respond only in JSON with this exact format:
 The leader has proposed the following team for the quest: {proposed_team}.
 You must vote to approve or reject this team.
 Consider whether you trust everyone on the proposed team.
-Respond only in JSON with this exact format:
+Respond only in JSON with this exact format and no other text before or after it.
 {{"approve": true}} or {{"approve": false}}
 """,
 
     "play_quest_card": """
 You are on the quest team. Play a quest card.
 Remember: good players must always play Success. Evil players may play Success or Fail.
-Respond only in JSON with this exact format:
+Respond only in JSON with this exact format and no other text before or after it.
 {"vote_pass": true} or {"vote_pass": false}
 """,
 
@@ -149,15 +188,16 @@ You are in the discussion phase. First decide if you have something meaningful t
 based on the current game state and what has been said so far. If you do, make your statement.
 If you have nothing to add right now, pass.
 
-Respond only in JSON with this exact format:
+Respond only in JSON with this exact format and no other text before or after it.
 {"respond": true, "statement": "your statement here"} or {"respond": false, "statement": null}
+
 """,
 
     "assassinate": lambda player_names: f"""
 Good has won three quests. As the Assassin you now have one chance to identify and name Merlin.
 The good players are: {player_names}.
 Review the behavior of each player throughout the game and identify who you think Merlin is.
-Respond only in JSON with this exact format:
+Respond only in JSON with this exact format and no other text before or after it.
 {{"target": "player_name"}}
 """,
 }

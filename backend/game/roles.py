@@ -1,4 +1,4 @@
-from game.schemas import Role, RoleName, Team
+from backend.game.schemas import Role, RoleName, Team
 
 
 # --- Role definitions ---

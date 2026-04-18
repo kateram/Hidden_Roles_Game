@@ -2,18 +2,19 @@ import json
 import random
 import anthropic
 from dotenv import load_dotenv
-from game.schemas import (
+from backend.game.schemas import (
     GameState, GamePhase, Player,
     TeamProposal, TeamVote, QuestVote,
     PublicStatement, RoleName
 )
-from game.roles import ROLES, ROLE_LIST, QUEST_TEAM_SIZES
-from game.state_machine import (
+from backend.game.roles import ROLES, ROLE_LIST, QUEST_TEAM_SIZES
+from backend.game.state_machine import (
     apply_team_proposal, apply_team_vote,
     apply_quest_vote, apply_assassination
 )
-from game.context_builder import build_context
-from agents.prompts import GAME_RULES, ROLE_INSTRUCTIONS, ACTION_PROMPTS
+from backend.game.context_builder import build_context
+from backend.agents.prompts import GAME_RULES, ROLE_INSTRUCTIONS, ACTION_PROMPTS
+from utils import wait
 
 load_dotenv()
 
@@ -53,8 +54,14 @@ def call_claude(system_prompt: str, user_prompt: str) -> dict:
             {"role": "user", "content": user_prompt}
         ]
     )
-    raw = response.content[0].text
-    return json.loads(raw)
+    raw = response.content[0].text.strip()
+    
+    # extract just the JSON object from the response
+    start = raw.rfind("{")
+    end = raw.rfind("}") + 1
+    json_str = raw[start:end]
+    
+    return json.loads(json_str)
 
 
 # --- Prompt assembly ---
@@ -64,12 +71,28 @@ def build_system_prompt(player: Player) -> str:
     return f"""
 {GAME_RULES}
 
-You are {player.name} and your role is {player.role.name}.
+YOUR NAME IS {player.name}. When other players say {player.name} they are talking about YOU.
+Always refer to yourself as "I" or "me", never as {player.name}. Your role is {player.role.name}.
 
 {role_instructions}
 
-Always act in accordance with your role's goals and constraints.
-Your responses will be parsed as JSON — always follow the exact format requested.
+General behavior rules:
+
+Before acting, carefully read all the information in your context, including
+our known allies or known evil players. This information is critical to
+playing your role correctly.
+
+- Be concise and direct. Say what you think and move on.
+- Do not use filler phrases like "great point", "I appreciate your thinking",
+  "thank you for that", or "this has been a productive discussion."
+- Do not repeat points that have already been made in the discussion.
+- Do not refer to yourself in the third person.
+- Remember that other players may be lying 
+- Always act in accordance with your role's goals and constraints.
+- Your responses will be parsed as JSON — always follow the exact format requested
+  with no other text before or after it.
+- Never vote to reject a team you proposed or strongly advocated for —
+  it is an immediate tell that you are evil
 """.strip()
 
 
@@ -108,15 +131,16 @@ def run_discussion(state: GameState) -> GameState:
                 state = state.model_copy(update={
                     "statements": state.statements + [statement]
                 })
-                print(f"{player.name}: {response['statement']}")
+                print(f"\n{player.name}: {response['statement']}")
                 all_passed = False
             else:
                 print(f"{player.name} passes")
 
         if all_passed:
-            print("  Everyone passed — ending discussion early")
+            print("\n  Everyone passed — ending discussion early")
             break
 
+    wait()
     return state
 
 
@@ -138,6 +162,8 @@ def run_team_proposal(state: GameState) -> GameState:
         proposed_team=response["proposed_team"],
     )
     print(f"Proposed team: {proposal.proposed_team}")
+
+    wait()
     return apply_team_proposal(state, proposal)
 
 
@@ -156,6 +182,8 @@ def run_voting(state: GameState) -> GameState:
         )
         state = apply_team_vote(state, vote)
         print(f"{player.name} voted: {'approve' if vote.approve else 'reject'}")
+
+    wait()
     return state
 
 
@@ -175,16 +203,19 @@ def run_quest(state: GameState) -> GameState:
         print(f"{player.name} played a quest card")
 
     last_result = state.quest_results[-1]
-    print(f"Quest {'passed' if last_result.passed else 'failed'} "
+    print(f"\nQuest {'passed' if last_result.passed else 'failed'} "
           f"({last_result.fail_count} fail cards)")
+    print(f"Score — Good: {sum(1 for r in state.quest_results if r.passed)} "
+          f"Evil: {sum(1 for r in state.quest_results if not r.passed)}")
+
+    wait()
     return state
 
 
 def run_assassination(state: GameState) -> GameState:
     print("\n--- Assassination Phase ---")
-    #find the assassin player
+    print("Good has won three quests. The Assassin now attempts to identify Merlin.")
     assassin = next(p for p in state.players if p.role.name == RoleName.ASSASSIN)
-    # get list of good players
     good_players = [p.name for p in state.players if p.role.team.value == "good"]
 
     system = build_system_prompt(assassin)
@@ -194,7 +225,9 @@ def run_assassination(state: GameState) -> GameState:
     )
     response = call_claude(system, user)
     target_name = response["target"]
-    print(f"Assassin targets: {target_name}")
+    print(f"\n{assassin.name} points at {target_name}: \"You are Merlin.\"")
+
+    wait()
     return apply_assassination(state, target_name)
 
 
@@ -205,9 +238,11 @@ def run_game(player_names: list[str]) -> GameState:
     state = create_initial_state(players)
 
     print("=== AVALON ===")
-    print("Roles assigned:")
+    print("\nRoles assigned:")
     for p in players:
-        print(f"  {p.name}: {p.role.name}")
+        print(f"  {p.name}: {p.role.name.value}")
+
+    wait()
 
     while state.phase != GamePhase.GAME_OVER:
         if state.phase == GamePhase.TEAM_PROPOSAL:
@@ -221,4 +256,6 @@ def run_game(player_names: list[str]) -> GameState:
             state = run_assassination(state)
 
     print(f"\n=== GAME OVER: {state.result.value} ===")
+    merlin = next(p for p in state.players if p.role.is_merlin)
+    print(f"Merlin was: {merlin.name}")
     return state

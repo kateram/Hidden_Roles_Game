@@ -1,4 +1,4 @@
-from game.schemas import Player, GameState, Team
+from backend.game.schemas import Player, GameState, Team
 
 
 def build_context(player: Player, state: GameState) -> dict:
