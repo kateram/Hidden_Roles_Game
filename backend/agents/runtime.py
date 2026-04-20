@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from backend.game.schemas import (
     GameState, GamePhase, Player,
     TeamProposal, TeamVote, QuestVote,
-    PublicStatement, RoleName
+    PublicStatement, RoleName, Team
 )
 from backend.game.roles import ROLES, ROLE_LIST, QUEST_TEAM_SIZES
 from backend.game.state_machine import (
@@ -55,44 +55,50 @@ def call_claude(system_prompt: str, user_prompt: str) -> dict:
         ]
     )
     raw = response.content[0].text.strip()
-    
-    # extract just the JSON object from the response
     start = raw.rfind("{")
     end = raw.rfind("}") + 1
     json_str = raw[start:end]
-    
     return json.loads(json_str)
 
 
 # --- Prompt assembly ---
 
-def build_system_prompt(player: Player) -> str:
+def build_system_prompt(player: Player, state: GameState) -> str:
     role_instructions = ROLE_INSTRUCTIONS[player.role.name]
+    all_player_names = [p.name for p in state.players]
+
+    knowledge = ""
+    if player.role.is_merlin:
+        evil_names = [p.name for p in state.players if p.role.team == Team.EVIL]
+        knowledge = f"\nThe evil players are: {', '.join(evil_names)}. This is your most critical private information — do not reveal it directly.\n"
+    elif player.role.team == Team.EVIL:
+        ally_names = [p.name for p in state.players
+                      if p.role.team == Team.EVIL and p.name != player.name]
+        knowledge = f"\nYour evil ally is: {', '.join(ally_names)}. This is your most critical private information — protect them and do not reveal this.\n"
+
     return f"""
 {GAME_RULES}
 
-YOUR NAME IS {player.name}. When other players say {player.name} they are talking about YOU.
-Always refer to yourself as "I" or "me", never as {player.name}. Your role is {player.role.name}.
+YOUR NAME IS {player.name.upper()}. You are playing as {player.name}.
+When other players say "{player.name}" they are talking about you.
+Your role is {player.role.name.value}.
 
+The players in this game are: {', '.join(all_player_names)}.
+These are the ONLY players that exist. Never reference any player not on this list.
+{knowledge}
 {role_instructions}
 
 General behavior rules:
-
-Before acting, carefully read all the information in your context, including
-our known allies or known evil players. This information is critical to
-playing your role correctly.
-
+- Always refer to yourself as "I" or "me", never as "{player.name}".
+- CRITICAL: Never vote to reject a team you proposed or strongly advocated for — this is an immediate tell.
+- Before acting, carefully read all the information in your context, including your known allies or known evil players.
 - Be concise and direct. Say what you think and move on.
-- Do not use filler phrases like "great point", "I appreciate your thinking",
-  "thank you for that", or "this has been a productive discussion."
-- Do not repeat points that have already been made in the discussion.
+- Do not use filler phrases like "great point", "I appreciate your thinking", "thank you for that".
+- Do not repeat points already made in discussion.
 - Do not refer to yourself in the third person.
-- Remember that other players may be lying 
-- Always act in accordance with your role's goals and constraints.
-- Your responses will be parsed as JSON — always follow the exact format requested
-  with no other text before or after it.
-- Never vote to reject a team you proposed or strongly advocated for —
-  it is an immediate tell that you are evil
+- Remember that other players may be lying.
+- Only reference players from the list above.
+- Your responses will be parsed as JSON — always follow the exact format requested with no other text before or after it.
 """.strip()
 
 
@@ -119,7 +125,7 @@ def run_discussion(state: GameState) -> GameState:
         all_passed = True
 
         for player in player_order:
-            system = build_system_prompt(player)
+            system = build_system_prompt(player, state)
             user = build_user_prompt(player, state, ACTION_PROMPTS["discuss"])
             response = call_claude(system, user)
 
@@ -153,7 +159,7 @@ def run_team_proposal(state: GameState) -> GameState:
     print(f"\n--- Team Proposal (Round {state.round}) ---")
     print(f"Leader: {leader.name}")
 
-    system = build_system_prompt(leader)
+    system = build_system_prompt(leader, state)
     user = build_user_prompt(leader, state, ACTION_PROMPTS["propose_team"](team_size))
     response = call_claude(system, user)
 
@@ -170,7 +176,7 @@ def run_team_proposal(state: GameState) -> GameState:
 def run_voting(state: GameState) -> GameState:
     print("\n--- Voting Phase ---")
     for player in state.players:
-        system = build_system_prompt(player)
+        system = build_system_prompt(player, state)
         user = build_user_prompt(
             player, state,
             ACTION_PROMPTS["vote_on_team"](state.proposed_team)
@@ -192,8 +198,26 @@ def run_quest(state: GameState) -> GameState:
     for player in state.players:
         if player.name not in state.proposed_team:
             continue
-        system = build_system_prompt(player)
-        user = build_user_prompt(player, state, ACTION_PROMPTS["play_quest_card"])
+
+        system = build_system_prompt(player, state)
+
+        # evil players reason before acting
+        if player.role.team == Team.EVIL:
+            reasoning = get_evil_reasoning(player, state)
+            print(f"\n[{player.name}'s reasoning]: {reasoning}")
+            action_prompt = f"""
+You have already reasoned through this decision:
+
+{reasoning}
+
+Based on this reasoning, now play your quest card.
+Respond only in JSON with this exact format and no other text before or after it.
+{{"vote_pass": true}} or {{"vote_pass": false}}
+"""
+        else:
+            action_prompt = ACTION_PROMPTS["play_quest_card"]
+
+        user = build_user_prompt(player, state, action_prompt)
         response = call_claude(system, user)
         vote = QuestVote(
             player_name=player.name,
@@ -216,9 +240,9 @@ def run_assassination(state: GameState) -> GameState:
     print("\n--- Assassination Phase ---")
     print("Good has won three quests. The Assassin now attempts to identify Merlin.")
     assassin = next(p for p in state.players if p.role.name == RoleName.ASSASSIN)
-    good_players = [p.name for p in state.players if p.role.team.value == "good"]
+    good_players = [p.name for p in state.players if p.role.team == Team.GOOD]
 
-    system = build_system_prompt(assassin)
+    system = build_system_prompt(assassin, state)
     user = build_user_prompt(
         assassin, state,
         ACTION_PROMPTS["assassinate"](good_players)
@@ -259,3 +283,25 @@ def run_game(player_names: list[str]) -> GameState:
     merlin = next(p for p in state.players if p.role.is_merlin)
     print(f"Merlin was: {merlin.name}")
     return state
+
+def get_evil_reasoning(player: Player, state: GameState) -> str:
+    system = build_system_prompt(player, state)
+    user = build_user_prompt(player, state, f"""
+Before deciding whether to pass or fail this quest, reason through the following:
+- Who else is on this quest team?
+- If you play a fail card, how many suspects will there be?
+- What is your current reputation with the other players?
+- Will failing this quest expose you or your ally?
+- What is the current score and how urgently does evil need a failure?
+
+Respond in plain text with your reasoning. Do not respond in JSON.
+""")
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=500,
+        system=system,
+        messages=[
+            {"role": "user", "content": user}
+        ]
+    )
+    return response.content[0].text.strip()

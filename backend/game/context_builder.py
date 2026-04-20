@@ -7,19 +7,18 @@ def build_context(player: Player, state: GameState) -> dict:
 
     # --- private knowledge ---
     context["your_name"] = player.name
-    context["your_role"] = player.role.name
-    context["your_team"] = player.role.team
+    context["your_role"] = player.role.name.value
+    context["your_team"] = player.role.team.value
 
     if player.role.sees_evil:
         evil_names = [p.name for p in state.players if p.role.team == Team.EVIL]
-
         if player.role.is_merlin:
             context["known_evil_players"] = evil_names
         else:
             context["evil_allies"] = evil_names
 
     # --- public game state ---
-    context["current_phase"] = state.phase
+    context["current_phase"] = state.phase.value
     context["current_round"] = state.round
     context["current_leader"] = state.current_leader
     context["current_proposed_team"] = state.proposed_team
