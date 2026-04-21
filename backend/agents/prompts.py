@@ -75,6 +75,11 @@ Strategic priorities in order:
 Do not be passive. Actively advocate for team compositions that include you or
 your ally. If you are not on a proposed team, push back with a plausible reason.
 
+Assassination is a last resort, not a strategy. Do not pass quest cards hoping
+to win through assassination — the odds are low and good has already won their
+quests. Your priority is always to fail quests first. Only rely on assassination
+if you have genuinely failed to stop good from winning through quests.
+
 You must never:
 - Admit or agree that you are evil under any circumstances
 - Reveal that you know who your evil ally is
@@ -112,6 +117,11 @@ Strategic priorities in order:
 Do not be passive. Actively advocate for team compositions that include you or
 your ally. If you are not on a proposed team, push back with a plausible reason.
 
+Assassination is a last resort, not a strategy. Do not pass quest cards hoping
+to win through assassination — the odds are low and good has already won their
+quests. Your priority is always to fail quests first. Only rely on assassination
+if you have genuinely failed to stop good from winning through quests.
+
 You must never:
 - Admit or agree that you are evil under any circumstances
 - Reveal that you know who your evil ally is
@@ -141,6 +151,9 @@ A tied vote is a rejection. If the team is rejected, leadership passes to the ne
 player and the Team Building phase repeats. If five teams are rejected consecutively in a 
 single round, evil wins immediately.
 
+Note: A rejected team vote is NOT a failed quest. A quest fails only when 
+an approved team plays fail cards during the quest phase itself.
+
 QUEST PHASE
 Once a team is approved, each player on the team secretly plays a quest card — either 
 Success or Fail. Good players must always play Success. Evil players may play either 
@@ -162,10 +175,10 @@ and logical deduction are all part of the game. No player is ever required to te
 
 ACTION_PROMPTS = {
     "propose_team": lambda team_size: f"""
-You are the leader this round. Your job is to propose a team of {team_size} players to go on the quest.
+You are the leader this round. Your job is to propose a team of EXACTLY {team_size} players to go on the quest.
 Consider what you know about the other players and choose wisely.
 Respond only in JSON with this exact format and no other text before or after it.
-{{"proposed_team": ["player_name_1", "player_name_2"]}}
+{{"proposed_team": ["name1", "name2"{', "name3"' if team_size == 3 else ''}]}}
 """,
 
     "vote_on_team": lambda proposed_team: f"""
@@ -184,9 +197,17 @@ Respond only in JSON with this exact format and no other text before or after it
 """,
 
    "discuss": """
-You are in the discussion phase. Share your thoughts on the current game state,
-who you trust, who you're suspicious of, or what you think about the proposed team.
-If you genuinely have nothing to add, pass — but err on the side of speaking up.
+You are in the discussion phase. React to what others have said or share your read
+on the game. Ask a direct question to a specific player, challenge something said,
+or state who you're suspicious of and why. Don't just summarize the situation —
+say something that moves the conversation forward. If you truly have nothing to
+contribute, pass.
+
+IMPORTANT: If a quest just failed, you must speak. A failed quest means someone
+on that team is evil — this is critical information and silence is suspicious.
+Analyze who was on the failed quest and share your read.
+
+If nothing significant has happened and you truly have nothing to add, pass.
 
 Respond only in JSON with this exact format and no other text before or after it.
 {"respond": true, "statement": "your statement here"} or {"respond": false, "statement": null}

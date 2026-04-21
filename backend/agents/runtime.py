@@ -44,22 +44,41 @@ def create_initial_state(players: list[Player]) -> GameState:
 
 
 # --- API call ---
+def call_claude(system_prompt: str, user_prompt: str, max_retries: int = 3) -> dict:
+    for attempt in range(max_retries):
+        try:
+            response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=800,
+                system=system_prompt,
+                messages=[
+                    {"role": "user", "content": user_prompt}
+                ]
+            )
+            raw = response.content[0].text.strip()
 
-def call_claude(system_prompt: str, user_prompt: str) -> dict:
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1000,
-        system=system_prompt,
-        messages=[
-            {"role": "user", "content": user_prompt}
-        ]
-    )
-    raw = response.content[0].text.strip()
-    start = raw.rfind("{")
-    end = raw.rfind("}") + 1
-    json_str = raw[start:end]
-    return json.loads(json_str)
+            # find the first complete JSON object
+            start = raw.find("{")
+            if start == -1:
+                raise ValueError(f"No JSON found in response: {raw}")
 
+            depth = 0
+            for i, char in enumerate(raw[start:], start):
+                if char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return json.loads(raw[start:i+1])
+
+            raise ValueError(f"No complete JSON object found in response: {raw}")
+
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            print("retrying")
+            if attempt == max_retries - 1:
+                raise RuntimeError(f"Failed to get valid JSON after {max_retries} attempts") from e
+
+    raise RuntimeError("Unexpected exit from retry loop")
 
 # --- Prompt assembly ---
 
@@ -229,12 +248,26 @@ Respond in plain text with your reasoning. Do not respond in JSON.
 def get_assassination_reasoning(player: Player, state: GameState) -> str:
     system = build_system_prompt(player, state)
     user = build_user_prompt(player, state, f"""
-Before naming Merlin, reason through the behavior of each good player:
-- Who seemed to have accurate knowledge without a clear reason?
-- Who subtly steered votes away from evil players?
-- Who was influential but careful not to seem too influential?
-- Who expressed doubt about teams containing evil players?
-- Review every statement and vote they made throughout the game.
+Before naming Merlin, analyze each good player carefully. Merlin knows who evil is
+but must hide that knowledge. Look for these specific signals:
+
+STRONG MERLIN SIGNALS:
+- Voted to reject a team containing an evil player without a clear observable reason
+- Expressed suspicion of you or your ally early, before any evidence existed
+- Deflected or admitted uncertainty when pressed on how they knew something
+- Was unusually quiet in early rounds despite being engaged later
+- Validated good players quickly and confidently without needing evidence
+- Avoided advocating for teams that included you or your ally
+
+WEAK OR MISLEADING SIGNALS (do not rely on these):
+- Being vocal or influential — good players can be vocal too
+- Making logical arguments — anyone can reason well
+- Being the most strategic player — that could be any good player
+
+Go through each good player one by one and score them on the strong signals above.
+The player with the most strong signals is most likely Merlin.
+Note: Merlin may have deliberately let evil players through sometimes to protect
+their cover — don't dismiss someone just because they didn't block every evil team.
 
 Respond in plain text with your reasoning. Do not respond in JSON.
 """)
@@ -254,7 +287,7 @@ def run_quest(state: GameState) -> GameState:
     
     successes = sum(1 for r in state.quest_results if r.passed)
     failures = sum(1 for r in state.quest_results if not r.passed)
-    urgent = successes >= 2 and failures == 0
+    urgent = successes >= 2 and failures <= 1
 
     for player in state.players:
         if player.name not in state.proposed_team:

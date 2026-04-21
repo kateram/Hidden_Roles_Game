@@ -24,7 +24,7 @@ def build_context(player: Player, state: GameState) -> dict:
     context["failed_quests"] = sum(1 for r in state.quest_results if not r.passed)
 
     # --- quest history ---
-    context["quest_history"] = [
+    context["quest_results"] = [
         {
             "round": r.round,
             "team": r.team,
@@ -35,7 +35,7 @@ def build_context(player: Player, state: GameState) -> dict:
     ]
 
     # --- team proposal history ---
-    context["vote_history"] = [
+    context["team_vote_history"] = [
         {
             "player": v.player_name,
             "approved": v.approve,
