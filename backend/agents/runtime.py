@@ -44,13 +44,18 @@ def create_initial_state(players: list[Player]) -> GameState:
 
 
 # --- API call ---
+
 def call_claude(system_prompt: str, user_prompt: str, max_retries: int = 3) -> dict:
     for attempt in range(max_retries):
         try:
             response = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=800,
-                system=system_prompt,
+                model="claude-sonnet-4-20250514",
+                max_tokens=500,
+                system=[{
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"}
+                }],
                 messages=[
                     {"role": "user", "content": user_prompt}
                 ]
@@ -79,6 +84,7 @@ def call_claude(system_prompt: str, user_prompt: str, max_retries: int = 3) -> d
                 raise RuntimeError(f"Failed to get valid JSON after {max_retries} attempts") from e
 
     raise RuntimeError("Unexpected exit from retry loop")
+
 
 # --- Prompt assembly ---
 
@@ -211,10 +217,11 @@ def run_voting(state: GameState) -> GameState:
     wait()
     return state
 
+
 def get_evil_reasoning(player: Player, state: GameState, urgent: bool = False) -> str:
     successes = sum(1 for r in state.quest_results if r.passed)
     failures = sum(1 for r in state.quest_results if not r.passed)
-    
+
     urgency_block = ""
     if urgent:
         urgency_block = """
@@ -236,14 +243,19 @@ Current score: Good has {successes} successful quests, Evil has {failures} faile
 Respond in plain text with your reasoning. Do not respond in JSON.
 """)
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-sonnet-4-20250514",
         max_tokens=500,
-        system=system,
+        system=[{
+            "type": "text",
+            "text": system,
+            "cache_control": {"type": "ephemeral"}
+        }],
         messages=[
             {"role": "user", "content": user}
         ]
     )
     return response.content[0].text.strip()
+
 
 def get_assassination_reasoning(player: Player, state: GameState) -> str:
     system = build_system_prompt(player, state)
@@ -272,9 +284,13 @@ their cover — don't dismiss someone just because they didn't block every evil 
 Respond in plain text with your reasoning. Do not respond in JSON.
 """)
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-sonnet-4-20250514",
         max_tokens=500,
-        system=system,
+        system=[{
+            "type": "text",
+            "text": system,
+            "cache_control": {"type": "ephemeral"}
+        }],
         messages=[
             {"role": "user", "content": user}
         ]
@@ -284,7 +300,7 @@ Respond in plain text with your reasoning. Do not respond in JSON.
 
 def run_quest(state: GameState) -> GameState:
     print("\n--- Quest Phase ---")
-    
+
     successes = sum(1 for r in state.quest_results if r.passed)
     failures = sum(1 for r in state.quest_results if not r.passed)
     urgent = successes >= 2 and failures <= 1
@@ -386,4 +402,3 @@ def run_game(player_names: list[str]) -> GameState:
     merlin = next(p for p in state.players if p.role.is_merlin)
     print(f"Merlin was: {merlin.name}")
     return state
-

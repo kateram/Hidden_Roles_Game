@@ -197,17 +197,15 @@ Respond only in JSON with this exact format and no other text before or after it
 """,
 
    "discuss": """
-You are in the discussion phase. React to what others have said or share your read
-on the game. Ask a direct question to a specific player, challenge something said,
-or state who you're suspicious of and why. Don't just summarize the situation —
-say something that moves the conversation forward. If you truly have nothing to
-contribute, pass.
+You are in the discussion phase. Before speaking, check the game state in your 
+context — quest results, vote history, current score — not just what was said last.
+React to actual game events first, conversation second.
+Keep your statement to 30 words maximum.
 
-IMPORTANT: If a quest just failed, you must speak. A failed quest means someone
-on that team is evil — this is critical information and silence is suspicious.
-Analyze who was on the failed quest and share your read.
+IMPORTANT: If a quest just failed or a team vote was just rejected, you must 
+speak and address what that means for the game.
 
-If nothing significant has happened and you truly have nothing to add, pass.
+If you have nothing new to add, pass.
 
 Respond only in JSON with this exact format and no other text before or after it.
 {"respond": true, "statement": "your statement here"} or {"respond": false, "statement": null}
