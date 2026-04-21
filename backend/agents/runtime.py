@@ -16,7 +16,7 @@ from backend.game.state_machine import (
 )
 from backend.game.context_builder import build_context
 from backend.agents.prompts import GAME_RULES, ROLE_INSTRUCTIONS, ACTION_PROMPTS
-from backend.api.websocket import emit
+from backend.api.websocket import emit, manager
 
 load_dotenv()
 
@@ -377,12 +377,14 @@ Respond only in JSON with this exact format and no other text before or after it
 
     last_result = state.quest_results[-1]
     await emit("quest_result", {
-        "round": state.round,
-        "passed": last_result.passed,
-        "fail_count": last_result.fail_count,
-        "good_score": sum(1 for r in state.quest_results if r.passed),
-        "evil_score": sum(1 for r in state.quest_results if not r.passed),
-    })
+    "round": state.round,
+    "passed": last_result.passed,
+    "fail_count": last_result.fail_count,
+    "good_score": sum(1 for r in state.quest_results if r.passed),
+    "evil_score": sum(1 for r in state.quest_results if not r.passed),
+})
+
+    await manager.wait_for_continue() 
 
     return state
 
