@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from backend.api.routes import router
 from backend.api.websocket import manager
 
@@ -13,6 +14,10 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+@app.get("/")
+async def serve_frontend():
+    return FileResponse("frontend/index.html")
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
