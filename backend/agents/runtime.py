@@ -51,7 +51,7 @@ def _call_claude_sync(system_prompt: str, user_prompt: str, max_retries: int = 3
     for attempt in range(max_retries):
         try:
             response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=500,
                 system=[{
                     "type": "text",
@@ -96,7 +96,7 @@ async def call_claude(system_prompt: str, user_prompt: str, max_retries: int = 3
 
 def _get_evil_reasoning_sync(system: str, user: str) -> str:
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-haiku-4-5-20251001",
         max_tokens=500,
         system=[{
             "type": "text",
@@ -112,7 +112,7 @@ def _get_evil_reasoning_sync(system: str, user: str) -> str:
 
 def _get_assassination_reasoning_sync(system: str, user: str) -> str:
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-haiku-4-5-20251001",
         max_tokens=500,
         system=[{
             "type": "text",
