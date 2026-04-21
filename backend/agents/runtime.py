@@ -192,18 +192,78 @@ def run_voting(state: GameState) -> GameState:
     wait()
     return state
 
+def get_evil_reasoning(player: Player, state: GameState, urgent: bool = False) -> str:
+    successes = sum(1 for r in state.quest_results if r.passed)
+    failures = sum(1 for r in state.quest_results if not r.passed)
+    
+    urgency_block = ""
+    if urgent:
+        urgency_block = """
+CRITICAL SITUATION: Good is close to winning and evil has not failed a single quest.
+You MUST play a fail card — accept the exposure risk. Letting good win 
+uncontested is worse than being discovered.
+"""
+
+    system = build_system_prompt(player, state)
+    user = build_user_prompt(player, state, f"""
+Before deciding whether to pass or fail this quest, reason through the following:
+- Who else is on this quest team?
+- If you play a fail card, how many suspects will there be?
+- What is your current reputation with the other players?
+- What is the exposure risk if you fail, and is that risk worth taking given the current score?
+
+Current score: Good has {successes} successful quests, Evil has {failures} failed quests.
+{urgency_block}
+Respond in plain text with your reasoning. Do not respond in JSON.
+""")
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=500,
+        system=system,
+        messages=[
+            {"role": "user", "content": user}
+        ]
+    )
+    return response.content[0].text.strip()
+
+def get_assassination_reasoning(player: Player, state: GameState) -> str:
+    system = build_system_prompt(player, state)
+    user = build_user_prompt(player, state, f"""
+Before naming Merlin, reason through the behavior of each good player:
+- Who seemed to have accurate knowledge without a clear reason?
+- Who subtly steered votes away from evil players?
+- Who was influential but careful not to seem too influential?
+- Who expressed doubt about teams containing evil players?
+- Review every statement and vote they made throughout the game.
+
+Respond in plain text with your reasoning. Do not respond in JSON.
+""")
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=500,
+        system=system,
+        messages=[
+            {"role": "user", "content": user}
+        ]
+    )
+    return response.content[0].text.strip()
+
 
 def run_quest(state: GameState) -> GameState:
     print("\n--- Quest Phase ---")
+    
+    successes = sum(1 for r in state.quest_results if r.passed)
+    failures = sum(1 for r in state.quest_results if not r.passed)
+    urgent = successes >= 2 and failures == 0
+
     for player in state.players:
         if player.name not in state.proposed_team:
             continue
 
         system = build_system_prompt(player, state)
 
-        # evil players reason before acting
         if player.role.team == Team.EVIL:
-            reasoning = get_evil_reasoning(player, state)
+            reasoning = get_evil_reasoning(player, state, urgent=urgent)
             print(f"\n[{player.name}'s reasoning]: {reasoning}")
             action_prompt = f"""
 You have already reasoned through this decision:
@@ -242,11 +302,21 @@ def run_assassination(state: GameState) -> GameState:
     assassin = next(p for p in state.players if p.role.name == RoleName.ASSASSIN)
     good_players = [p.name for p in state.players if p.role.team == Team.GOOD]
 
+    reasoning = get_assassination_reasoning(assassin, state)
+    print(f"\n[{assassin.name}'s reasoning]: {reasoning}")
+
+    action_prompt = f"""
+You have already reasoned through this decision:
+
+{reasoning}
+
+Based on this reasoning, name the player you believe is Merlin.
+Respond only in JSON with this exact format and no other text before or after it.
+{{"target": "player_name"}}
+"""
+
     system = build_system_prompt(assassin, state)
-    user = build_user_prompt(
-        assassin, state,
-        ACTION_PROMPTS["assassinate"](good_players)
-    )
+    user = build_user_prompt(assassin, state, action_prompt)
     response = call_claude(system, user)
     target_name = response["target"]
     print(f"\n{assassin.name} points at {target_name}: \"You are Merlin.\"")
@@ -284,24 +354,3 @@ def run_game(player_names: list[str]) -> GameState:
     print(f"Merlin was: {merlin.name}")
     return state
 
-def get_evil_reasoning(player: Player, state: GameState) -> str:
-    system = build_system_prompt(player, state)
-    user = build_user_prompt(player, state, f"""
-Before deciding whether to pass or fail this quest, reason through the following:
-- Who else is on this quest team?
-- If you play a fail card, how many suspects will there be?
-- What is your current reputation with the other players?
-- Will failing this quest expose you or your ally?
-- What is the current score and how urgently does evil need a failure?
-
-Respond in plain text with your reasoning. Do not respond in JSON.
-""")
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=500,
-        system=system,
-        messages=[
-            {"role": "user", "content": user}
-        ]
-    )
-    return response.content[0].text.strip()

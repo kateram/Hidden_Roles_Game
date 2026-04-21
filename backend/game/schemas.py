@@ -17,7 +17,6 @@ class RoleName(str, Enum):
 
 
 class GamePhase(str, Enum):
-    SETUP = "setup"
     TEAM_PROPOSAL = "team_proposal"
     VOTING = "voting"
     QUEST = "quest"
@@ -42,13 +41,6 @@ class Role(BaseModel):
 class Player(BaseModel):
     name: str
     role: Role
-    is_leader: bool = False
-
-
-class BeliefState(BaseModel):
-    observer: str
-    target: str
-    reasoning: str
 
 
 # --- Action models ---
@@ -71,12 +63,6 @@ class QuestVote(BaseModel):
 class PublicStatement(BaseModel):
     player_name: str
     statement: str
-
-
-class AssassinationTarget(BaseModel):
-    assassin: str
-    target: str
-
 
 # --- Game state ---
 

@@ -184,13 +184,12 @@ Respond only in JSON with this exact format and no other text before or after it
 """,
 
    "discuss": """
-You are in the discussion phase. First decide if you have something meaningful to say 
-based on the current game state and what has been said so far. If you do, make your statement.
-If you have nothing to add right now, pass.
+You are in the discussion phase. Share your thoughts on the current game state,
+who you trust, who you're suspicious of, or what you think about the proposed team.
+If you genuinely have nothing to add, pass — but err on the side of speaking up.
 
 Respond only in JSON with this exact format and no other text before or after it.
 {"respond": true, "statement": "your statement here"} or {"respond": false, "statement": null}
-
 """,
 
     "assassinate": lambda player_names: f"""
