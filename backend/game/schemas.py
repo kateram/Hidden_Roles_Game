@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 from enum import Enum
+from datetime import datetime
+from typing import Any
 
 
 # --- Enums ---
@@ -85,3 +87,12 @@ class GameState(BaseModel):
     statements: list[PublicStatement] = []
     consecutive_rejections: int = 0
     result: GameResult | None = None
+
+class GameEvent(BaseModel):
+    type: str
+    payload: dict[str, Any] = {}
+    timestamp: str = ""
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.timestamp:
+            self.timestamp = datetime.utcnow().isoformat()
