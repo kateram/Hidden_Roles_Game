@@ -2,7 +2,7 @@
 
 A fully autonomous simulation of the social deduction game [The Resistance: Avalon](https://en.wikipedia.org/wiki/The_Resistance_(game)), where five LLM agents play against each other with hidden roles, deception, and strategic reasoning.
 
-![Avalon God View Dashboard](assets/demo.gif)
+![Avalon God View Dashboard](assets/avalon.png)
 
 ---
 
